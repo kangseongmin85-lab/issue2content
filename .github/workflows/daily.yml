@@ -1,0 +1,46 @@
+name: content-24h
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # 24시간, 30분 간격 실행 (중복 이슈는 자동 건너뜀)
+  workflow_dispatch: {}       # Actions 탭에서 수동 실행 버튼
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install Korean fonts
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('requirements.txt') }}
+      - name: Install Chromium
+        run: playwright install chromium --with-deps
+      - name: Run pipeline
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_PARENT_PAGE_ID: ${{ secrets.NOTION_PARENT_PAGE_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          I2C_HANDLE: ${{ vars.I2C_HANDLE }}
+          I2C_CATEGORY: all
+          I2C_MAX_PER_DAY: "8"
+        run: python main.py
+      - name: Upload outputs (백업/노션 미설정 시 확인용)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-${{ github.run_number }}
+          path: out/
+          if-no-files-found: ignore
