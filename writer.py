@@ -36,9 +36,24 @@ def write_content(issue) -> dict:
     user = prompts.WRITE_USER.format(
         date=date.today().isoformat(), keyword=issue.keyword,
         category=issue.category, articles=articles_txt)
-    draft = _call(client, prompts.WRITE_SYSTEM, user)          # 1회: 작성
-    draft = _call(client, prompts.LINT1_SYSTEM, json.dumps(draft, ensure_ascii=False))  # 2회: AI패턴 린트
-    draft = _call(client, prompts.LINT2_SYSTEM, json.dumps(draft, ensure_ascii=False))  # 3회: 가독성 린트
+    try:
+        draft = _call(client, prompts.WRITE_SYSTEM, user)      # 1회: 작성
+    except Exception as e:
+        # 크레딧 부족·레이트리밋·일시 장애 → 죽지 말고 템플릿 모드로 계속 진행
+        print(f"    [writer] API 호출 실패({type(e).__name__}) — 템플릿 모드로 폴백")
+        print(f"    [writer] 상세: {str(e)[:200]}")
+        d = _template_fallback(issue)
+        d["mode"] = "template(API 실패)"
+        d["api_error"] = str(e)[:300]
+        return d
+
+    for i, sys_prompt in enumerate((prompts.LINT1_SYSTEM, prompts.LINT2_SYSTEM), 1):
+        try:
+            draft = _call(client, sys_prompt, json.dumps(draft, ensure_ascii=False))
+        except Exception as e:
+            print(f"    [writer] 린트 {i}회차 실패({type(e).__name__}) — 이전 결과 유지")
+            draft["mode"] = f"api+lint{i-1}"
+            return draft
     draft["mode"] = "api+lint2"
     return draft
 
