@@ -1,0 +1,4 @@
+feedparser>=6.0
+requests>=2.31
+playwright>=1.45
+anthropic>=0.40
