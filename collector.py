@@ -4,6 +4,7 @@ GitHub Actions 등 데이터센터 IP에서 구글 뉴스가 막히는 경우가
 ① 브라우저 User-Agent로 요청 ② 국내 매체 RSS 폴백 ③ 시간 필터 완화 재시도
 3단계 방어를 둔다.
 """
+import calendar
 import re
 import time
 from dataclasses import dataclass, field
@@ -58,6 +59,8 @@ STOPWORDS = set((
     "있다 없다 대한 위해 오늘 지난 이번 관련 기자 뉴스 속보 종합 단독 영상 포토 "
     "것으로 한다 했다 밝혔 전망 시장 기사 사진 인터뷰 헤드라인 이슈 정리 "
     "만에 위한 속에 대해 이후 어떻게 무슨 왜 다시 함께 "
+    "잡히면 되면 하면 라며 면서 지만 는데 으로 에서 부터 까지 보다 "
+    "올해 작년 내년 이달 다음 최근 현재 당시 오전 오후 "
     "뉴스핌 연합뉴스 머니투데이 이데일리 한국경제 매일경제 서울경제 파이낸셜뉴스 "
     "조선비즈 아시아경제 헤럴드경제 뉴시스 뉴스1 데일리안 인포스탁데일리 매경 한경 "
     "머니S 비즈워치 시사저널 노컷뉴스 오마이뉴스 프레시안 국민일보 세계일보 문화일보"
@@ -71,6 +74,7 @@ class Article:
     published: str
     source: str
     category: str
+    ts: float = 0.0
 
 
 @dataclass
@@ -90,7 +94,8 @@ def _tokens(title: str):
     words = re.findall(r"[가-힣A-Za-z0-9]{2,}", title)
     return [w for w in words
             if w not in STOPWORDS and w.lower() not in TLD_LIKE
-            and not (w.isascii() and w.islower() and len(w) < 3)]
+            and not (w.isascii() and w.islower() and len(w) < 3)
+            and not re.fullmatch(r"\d+(년|월|일|차|주|호|분기|년도)?", w)]
 
 
 def _fetch(url: str):
@@ -118,26 +123,29 @@ def _harvest(feed_map: dict, cutoff: float) -> list:
             entries = _fetch(url)
             kept = 0
             for e in entries[:40]:
-                ts = time.mktime(e.published_parsed) if getattr(e, "published_parsed", None) else time.time()
+                # RSS pubDate는 UTC — timegm으로 변환 (mktime은 로컬시간 해석이라 KST에서 9h 오차)
+                ts = calendar.timegm(e.published_parsed) if getattr(e, "published_parsed", None) else time.time()
                 if ts < cutoff:
                     continue
                 src = e.get("source")
                 src_title = src.get("title", "") if isinstance(src, dict) else ""
                 articles.append(Article(
                     title=e.get("title", ""), link=e.get("link", ""),
-                    published=e.get("published", ""), source=src_title, category=category))
+                    published=e.get("published", ""), source=src_title, category=category, ts=ts))
                 kept += 1
             print(f"    [feed] {url[:58]:58} received={len(entries):3} kept={kept}")
     return articles
 
 
-def collect(max_age_hours: int = 36) -> list:
+def collect(max_age_hours: int = 8) -> list:
+    """최근 24h를 수집한 뒤 최근 max_age_hours를 우선 사용. 부족하면 24h로 확장."""
+    day = _harvest(FEEDS, time.time() - 24 * 3600)
     cutoff = time.time() - max_age_hours * 3600
-    articles = _harvest(FEEDS, cutoff)
+    articles = [a for a in day if a.ts >= cutoff]
 
-    if not articles:  # 시간 필터 때문일 수도 있으니 한 번 완화해서 재시도
-        print("    [collector] 0건 — 시간 필터 해제하고 재시도")
-        articles = _harvest(FEEDS, 0)
+    if len(articles) < 30 and day:
+        print(f"    [collector] 최근 {max_age_hours}h {len(articles)}건 — 부족해 24h로 확장")
+        articles = day
 
     if not articles:  # 구글이 막힌 경우 국내 매체로 폴백
         print("    [collector] 구글 뉴스 실패 — 국내 매체 RSS로 폴백")
@@ -148,18 +156,21 @@ def collect(max_age_hours: int = 36) -> list:
 
 def rank_issues(articles: list, top_n: int = 3) -> list:
     """여러 매체가 동시에 다루는 키워드일수록 화제성이 높다고 본다."""
+    now = time.time()
     counts, sample = {}, {}
     for a in articles:
+        age_h = (now - a.ts) / 3600 if a.ts else 0
+        weight = 3 if age_h <= 2 else (2 if age_h <= 5 else 1)
         for w in set(_tokens(a.title)):
-            counts[w] = counts.get(w, 0) + 1
+            counts[w] = counts.get(w, 0) + weight
             sample.setdefault(w, []).append(a)
 
-    min_hits = 3 if len(articles) >= 40 else 2  # 수집량이 적으면 기준 완화
+    min_hits = 3 if len(articles) >= 40 else 2  # 수집량이 적으면 기준 완화 (실기사 수 기준)
     issues = []
     for w, c in sorted(counts.items(), key=lambda x: -x[1])[:top_n * 6]:
-        if c < min_hits:
+        if len(sample[w]) < min_hits:
             continue
-        arts = sample[w][:8]
+        arts = sorted(sample[w], key=lambda a: -a.ts)[:8]
         cats = [a.category for a in arts]
         cat = max(set(cats), key=cats.count)
         issues.append(Issue(keyword=w, score=c, category=cat, articles=arts))

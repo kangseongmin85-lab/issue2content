@@ -44,13 +44,22 @@ def main():
     if skipped:
         print(f"[prep] 최근 {DEDUP_DAYS}일 중복 스킵: " + ", ".join(i.keyword for i in skipped))
 
+    now = time.time()
+
+    def _age_h(ts):
+        return round((now - ts) / 3600, 1) if ts else None
+
     payload = {
         "generated_at": time.strftime("%Y-%m-%d %H:%M"),
         "candidates": [
             {
                 "keyword": i.keyword, "score": i.score, "category": i.category,
+                "article_count": len(i.articles),
+                # 가장 최근 기사가 몇 시간 전인지 — 신선도 판정의 1차 지표
+                "newest_age_h": min((_age_h(a.ts) for a in i.articles if a.ts), default=None),
                 "articles": [
-                    {"title": a.title, "link": a.link, "source": a.source, "published": a.published}
+                    {"title": a.title, "link": a.link, "source": a.source,
+                     "published": a.published, "age_h": _age_h(a.ts)}
                     for a in i.articles
                 ],
             }
@@ -60,8 +69,12 @@ def main():
     OUT_PATH.parent.mkdir(exist_ok=True)
     OUT_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"[prep] 후보 {len(fresh)}건 → {OUT_PATH}")
-    for i in fresh:
-        print(f"  - {i.keyword} ({i.category}, 기사 {i.score}건)")
+    for c in payload["candidates"]:
+        age = c["newest_age_h"]
+        flag = "" if age is None or age <= 6 else "   ⚠ 지난 이슈"
+        age_txt = f"{age}h 전" if age is not None else "시각불명"
+        print(f"  - {c['keyword']} ({c['category']}, 기사 {c['article_count']}건, "
+              f"최신 {age_txt}, 화제도 {c['score']}){flag}")
     if not fresh:
         print("[prep] 새 이슈 없음 — 이번 회차는 건너뛰어도 됨")
 
