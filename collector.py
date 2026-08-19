@@ -137,9 +137,21 @@ def _harvest(feed_map: dict, cutoff: float) -> list:
     return articles
 
 
+def _dedupe(articles: list) -> list:
+    """같은 기사가 여러 피드에 걸려 화제도가 부풀지 않게 제목 기준 중복 제거."""
+    seen, out = set(), []
+    for a in articles:
+        key = re.sub(r"[^가-힣A-Za-z0-9]", "", a.title)[:40]
+        if key and key in seen:
+            continue
+        seen.add(key)
+        out.append(a)
+    return out
+
+
 def collect(max_age_hours: int = 8) -> list:
     """최근 24h를 수집한 뒤 최근 max_age_hours를 우선 사용. 부족하면 24h로 확장."""
-    day = _harvest(FEEDS, time.time() - 24 * 3600)
+    day = _dedupe(_harvest(FEEDS, time.time() - 24 * 3600))
     cutoff = time.time() - max_age_hours * 3600
     articles = [a for a in day if a.ts >= cutoff]
 
@@ -149,7 +161,7 @@ def collect(max_age_hours: int = 8) -> list:
 
     if not articles:  # 구글이 막힌 경우 국내 매체로 폴백
         print("    [collector] 구글 뉴스 실패 — 국내 매체 RSS로 폴백")
-        articles = _harvest(FALLBACK_FEEDS, cutoff) or _harvest(FALLBACK_FEEDS, 0)
+        articles = _dedupe(_harvest(FALLBACK_FEEDS, cutoff) or _harvest(FALLBACK_FEEDS, 0))
 
     return articles
 

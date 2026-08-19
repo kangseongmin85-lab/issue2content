@@ -16,7 +16,7 @@ OUT_PATH = Path("work/candidates.json")
 DEDUP_DAYS = 7
 
 
-def _recent_seen() -> list:
+def _load_seen() -> list:
     if not SEEN_PATH.exists():
         return []
     try:
@@ -24,7 +24,19 @@ def _recent_seen() -> list:
     except Exception:
         return []
     cutoff = (date.today() - timedelta(days=DEDUP_DAYS)).isoformat()
-    return [s["keyword"] for s in seen if s.get("date", "") >= cutoff]
+    return [s for s in seen if s.get("date", "") >= cutoff]
+
+
+def _recent_seen() -> list:
+    return [s["keyword"] for s in _load_seen()]
+
+
+def _recent_links() -> set:
+    """이미 다룬 회차가 근거로 쓴 기사 링크 — 같은 사건을 다른 키워드로 재탕하는 것을 막는다."""
+    links = set()
+    for s in _load_seen():
+        links.update(s.get("links") or [])
+    return links
 
 
 def _is_dup(kw: str, recent: list) -> bool:
@@ -38,11 +50,23 @@ def main():
     issues = collector.rank_issues(articles, top_n=8)
 
     recent = _recent_seen()
-    fresh, skipped = [], []
+    used_links = _recent_links()
+    fresh, skipped, same_story = [], [], []
     for i in issues:
-        (skipped if _is_dup(i.keyword, recent) else fresh).append(i)
+        if _is_dup(i.keyword, recent):
+            skipped.append(i)
+            continue
+        # 같은 사건 재탕 차단: 근거 기사의 절반 이상이 이미 쓴 기사면 제외
+        links = [a.link for a in i.articles if a.link]
+        overlap = sum(1 for l in links if l in used_links)
+        if links and overlap / len(links) >= 0.5:
+            same_story.append(i)
+            continue
+        fresh.append(i)
     if skipped:
-        print(f"[prep] 최근 {DEDUP_DAYS}일 중복 스킵: " + ", ".join(i.keyword for i in skipped))
+        print(f"[prep] 키워드 중복 스킵({DEDUP_DAYS}일): " + ", ".join(i.keyword for i in skipped))
+    if same_story:
+        print("[prep] 같은 사건 재탕 스킵: " + ", ".join(i.keyword for i in same_story))
 
     now = time.time()
 
