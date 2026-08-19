@@ -50,6 +50,11 @@ def _blocks(draft: dict, image_ids: list) -> list:
     if draft.get("x_single"):
         b.append({"object": "block", "type": "code",
                   "code": {"language": "plain text", "rich_text": _rt(draft["x_single"])}})
+    if draft.get("x_reply"):
+        b.append({"object": "block", "type": "paragraph",
+                  "paragraph": {"rich_text": _rt("↓ 첫 답글용 (블로그 링크는 본문이 아니라 여기에)")}})
+        b.append({"object": "block", "type": "code",
+                  "code": {"language": "plain text", "rich_text": _rt(draft["x_reply"])}})
     for i, post in enumerate(draft.get("x_thread") or [], 1):
         b.append({"object": "block", "type": "code",
                   "code": {"language": "plain text", "rich_text": _rt(post)}})

@@ -1,8 +1,8 @@
 name: content-24h
 
 on:
-  schedule:
-    - cron: "*/30 * * * *"   # 24시간, 30분 간격 실행 (중복 이슈는 자동 건너뜀)
+  # 로컬 모드(Claude Code /x-blog-round)로 전환 — 스케줄 정지 (2026-08-19)
+  # 재가동하려면 schedule 블록을 복원할 것
   workflow_dispatch: {}       # Actions 탭에서 수동 실행 버튼
 
 jobs:

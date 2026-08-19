@@ -25,6 +25,21 @@ FEEDS = {
         "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
         "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko",
     ],
+    "테크": [
+        "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ko&gl=KR&ceid=KR:ko",
+        "https://news.google.com/rss/search?q=AI%20OR%20%EC%9D%B8%EA%B3%B5%EC%A7%80%EB%8A%A5&hl=ko&gl=KR&ceid=KR:ko",
+    ],
+    "연예": [
+        "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=ko&gl=KR&ceid=KR:ko",
+        "https://news.google.com/rss/search?q=%EB%B9%8C%EB%B3%B4%EB%93%9C%20OR%20%EC%BB%B4%EB%B0%B1&hl=ko&gl=KR&ceid=KR:ko",
+    ],
+    "스포츠": [
+        "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=ko&gl=KR&ceid=KR:ko",
+    ],
+    "부동산": [
+        "https://news.google.com/rss/search?q=%EB%B6%80%EB%8F%99%EC%82%B0%20OR%20%EC%95%84%ED%8C%8C%ED%8A%B8%20OR%20%EC%A0%84%EC%84%B8&hl=ko&gl=KR&ceid=KR:ko",
+        "https://news.google.com/rss/search?q=%EA%B8%88%EB%A6%AC%20OR%20%EB%8C%80%EC%B6%9C&hl=ko&gl=KR&ceid=KR:ko",
+    ],
 }
 
 # 2순위: 구글이 막혔을 때 쓰는 국내 매체 RSS
@@ -42,6 +57,7 @@ FALLBACK_FEEDS = {
 STOPWORDS = set((
     "있다 없다 대한 위해 오늘 지난 이번 관련 기자 뉴스 속보 종합 단독 영상 포토 "
     "것으로 한다 했다 밝혔 전망 시장 기사 사진 인터뷰 헤드라인 이슈 정리 "
+    "만에 위한 속에 대해 이후 어떻게 무슨 왜 다시 함께 "
     "뉴스핌 연합뉴스 머니투데이 이데일리 한국경제 매일경제 서울경제 파이낸셜뉴스 "
     "조선비즈 아시아경제 헤럴드경제 뉴시스 뉴스1 데일리안 인포스탁데일리 매경 한경 "
     "머니S 비즈워치 시사저널 노컷뉴스 오마이뉴스 프레시안 국민일보 세계일보 문화일보"
@@ -65,9 +81,16 @@ class Issue:
     articles: list = field(default_factory=list)
 
 
+TLD_LIKE = {"com", "kr", "net", "co", "org", "www", "https", "http", "html", "news"}
+
+
 def _tokens(title: str):
+    # 구글 뉴스 RSS 제목 꼬리의 출처 표기("제목 - 매체" / "제목 - v.daum.net")를 제거
+    title = re.sub(r"\s+[-–|]\s+[^-–|]{1,40}$", "", title)
     words = re.findall(r"[가-힣A-Za-z0-9]{2,}", title)
-    return [w for w in words if w not in STOPWORDS]
+    return [w for w in words
+            if w not in STOPWORDS and w.lower() not in TLD_LIKE
+            and not (w.isascii() and w.islower() and len(w) < 3)]
 
 
 def _fetch(url: str):
@@ -137,7 +160,8 @@ def rank_issues(articles: list, top_n: int = 3) -> list:
         if c < min_hits:
             continue
         arts = sample[w][:8]
-        cat = "주식" if any(a.category == "주식" for a in arts) else "전반"
+        cats = [a.category for a in arts]
+        cat = max(set(cats), key=cats.count)
         issues.append(Issue(keyword=w, score=c, category=cat, articles=arts))
 
     dedup = []

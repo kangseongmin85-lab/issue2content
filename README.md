@@ -71,3 +71,32 @@ python main.py
 - 이미지·노션 저장·복붙 블록 구조는 동일
 
 깊게 파야 하는 이슈(공시 검증, 수치 교차 확인이 필요한 날)는 Cowork에서 "오늘 이슈로 콘텐츠 만들어줘"로 기존 파이프라인을 쓰는 걸 권장.
+
+---
+
+## 로컬 모드 (Claude Code) — 현재 운영 방식 (2026-08-19~)
+
+GitHub Actions 크론과 Anthropic API를 쓰지 않는다. 글은 Claude Code 세션이 직접 쓴다.
+
+**시작 방법:**
+
+1. 이 폴더에서 Claude Code 세션을 연다
+2. `/loop 1h /x-blog-round` 입력 — 1시간 간격으로 자동 반복 (PC와 세션이 켜져 있는 동안)
+
+**최초 1회 설정:**
+
+```bash
+pip install -r requirements.txt
+playwright install chromium
+copy .env.example .env   # 그리고 .env에 노션/텔레그램 토큰 입력
+```
+
+**구성:**
+
+- `local_prep.py` — RSS 수집·랭킹·중복제거(최근 7일, seen.json) → work/candidates.json
+- Claude 세션 — 이슈 선정, 원문 확인, 콘텐츠 작성 (`.claude/skills/x-blog-round/`)
+- `render_local.py` — 카드 PNG 렌더 → out/날짜/
+- `publish_local.py` — 노션 저장 + 텔레그램 알림 + seen.json 기록
+- `전략.md` — X 팔로워 성장 전략 (매 회차 참조, 하루 1회 자동 학습·갱신)
+
+기존 GitHub Actions(`daily.yml`)는 수동 실행 버튼만 남기고 스케줄 정지 상태.
