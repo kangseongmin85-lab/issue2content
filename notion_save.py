@@ -39,6 +39,16 @@ def _blocks(draft: dict, image_ids: list) -> list:
               "heading_1": {"rich_text": _rt("상태: 🟡 초안 (검토 대기)")}})
     b.append({"object": "block", "type": "paragraph",
               "paragraph": {"rich_text": _rt(f"작성 모드: {draft.get('mode')} · [내 코멘트] 슬롯을 채운 뒤 발행하세요.")}})
+    if draft.get("lint_summary"):
+        b.append({"object": "block", "type": "toggle",
+                  "toggle": {"rich_text": _rt("▶ 린트 3회차 수정 요약"),
+                             "children": [{"object": "block", "type": "paragraph",
+                                           "paragraph": {"rich_text": _rt(draft["lint_summary"])}}]}})
+    if draft.get("copyright_check"):
+        b.append({"object": "block", "type": "toggle",
+                  "toggle": {"rich_text": _rt("▶ 저작권 체크 결과 (법률 자문 아님)"),
+                             "children": [{"object": "block", "type": "paragraph",
+                                           "paragraph": {"rich_text": _rt(draft["copyright_check"])}}]}})
     if image_ids:
         b.append({"object": "block", "type": "heading_2",
                   "heading_2": {"rich_text": _rt("🖼 X 첨부 이미지 (다운로드 → 포스트에 첨부)")}})
@@ -47,6 +57,10 @@ def _blocks(draft: dict, image_ids: list) -> list:
                       "image": {"type": "file_upload", "file_upload": {"id": fid}}})
     b.append({"object": "block", "type": "heading_2",
               "heading_2": {"rich_text": _rt("📋 X 발행용 (복붙 블록)")}})
+    if "[내 코멘트" in (draft.get("x_single") or "") + " ".join(draft.get("x_thread") or []):
+        b.append({"object": "block", "type": "callout",
+                  "callout": {"icon": {"emoji": "⚠️"},
+                              "rich_text": _rt("[내 코멘트] 슬롯을 내 관점으로 채운 뒤 발행하세요.")}})
     if draft.get("x_single"):
         b.append({"object": "block", "type": "code",
                   "code": {"language": "plain text", "rich_text": _rt(draft["x_single"])}})
@@ -60,6 +74,10 @@ def _blocks(draft: dict, image_ids: list) -> list:
                   "code": {"language": "plain text", "rich_text": _rt(post)}})
     b.append({"object": "block", "type": "heading_2",
               "heading_2": {"rich_text": _rt("📝 블로그 발행용")}})
+    if "[내 코멘트" in (draft.get("blog_body") or ""):
+        b.append({"object": "block", "type": "callout",
+                  "callout": {"icon": {"emoji": "⚠️"},
+                              "rich_text": _rt("[내 코멘트] 슬롯을 채운 뒤 발행하세요. 아래 블록은 본문만 담겨 있습니다.")}})
     b.append({"object": "block", "type": "paragraph",
               "paragraph": {"rich_text": _rt("제목: " + (draft.get("blog_title") or ""))}})
     # 블로그 본문: 2000자 단위로 분할해 code 블록으로 (복붙용)

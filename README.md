@@ -98,5 +98,10 @@ copy .env.example .env   # 그리고 .env에 노션/텔레그램 토큰 입력
 - `render_local.py` — 카드 PNG 렌더 → out/날짜/
 - `publish_local.py` — 노션 저장 + 텔레그램 알림 + seen.json 기록
 - `전략.md` — X 팔로워 성장 전략 (매 회차 참조, 하루 1회 자동 학습·갱신)
+- `docs/` — 품질 기준 (Cowork 세션 자산 이식, 2026-08-20)
+  - `lint-protocol.md` 3회 린트 명세 / `ai-patterns-checklist.md` 한국어 AI 문체 30항목
+  - `copyright-checklist.md` 저작권 15항목 / `notion-template.md` 노션 구조 / `image-cards.md` 카드 규격
+- `prompts/system_prompts.md` — API 모드용 압축 프롬프트 (현재 미사용, 참고용)
+- `CLAUDE.md` — 세션이 지켜야 할 절대 규칙과 문서 포인터
 
 기존 GitHub Actions(`daily.yml`)는 수동 실행 버튼만 남기고 스케줄 정지 상태.
